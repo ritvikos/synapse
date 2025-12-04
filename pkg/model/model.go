@@ -12,5 +12,3 @@ type Task[T any] struct {
 	Metadata  *T
 	// Fingerprint string
 }
-
-type CompareFunc[T any] func(a, b Task[T]) int
