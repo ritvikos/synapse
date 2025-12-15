@@ -6,21 +6,64 @@ import (
 )
 
 // TODO:
-// - Lightweight embedded database for book-keeping
-// - Maintain log to track files at directory-level
+// - Lightweight embedded database for book-keeping config state and current working batch directory, for recovery after crashes or restarts.
 
-// Manages local batches for remote storage or local persistence.
+// Spooler manages local batches of files for remote storage or local persistence.
+//
+// It accumulates files into batches up to a configured size limit. When a batch
+// reaches its size threshold, it triggers a rotation and invokes the configured hooks
+// for processing, if any.
+//
+// # Example Usage
+//
+//	config := spooler.SpoolerConfig{
+//		FileWriterConfig: spooler.FileWriterConfig{
+//			MaxFileSize: 5 * 1024 * 1024, // 5 MB per file
+//		},
+//		BatchConfig: spooler.BatchConfig{
+//			BaseDir:      "/var/spool/synapse",
+//			MaxBatchSize: 1 * 1024 * 1024 * 1024, // 1 GB per batch
+//			Processor: spooler.BatchProcessor{
+//				Async:        true,
+//				DeleteSource: true,
+//				Hooks: &spooler.BatchHooks{
+//					OnBatchReady: func(batchDir string, totalBytes int64) error {
+//						return nil
+//					},
+//					OnBatchError: func(batchDir string, err *error) {
+//						// Handle processing errors
+//					},
+//				},
+//			},
+//		},
+//	}
+//
+//	s, err := spooler.NewSpooler(config)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//
+// // Create a new file writer
+//
+//	if err := s.NewWriter(ctx, "output.txt"); err != nil {
+//		log.Fatal(err)
+//	}
+//
+// //  Write data chunks
+//
+//	if err := s.WriteChunk([]byte("some data...")); err != nil {
+//		log.Fatal(err)
+//	}
+//
+// // Commit the current file into the batch.
+//
+//	if err := s.Commit(); err != nil {
+//		log.Fatal(err)
+//	}
 type Spooler struct {
-	// Configuration
-	config SpoolerConfig
-
-	// Factory for creating file writers
-	writer writerFactory
-
-	// Manages batch directories and sizes
-	batcher *batcher
-
-	// Tracks current file writer
+	config        SpoolerConfig
+	writer        writerFactory
+	batcher       *batcher
 	currentWriter *fileWriter
 }
 

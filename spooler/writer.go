@@ -25,7 +25,6 @@ func newWriterFactory(config FileWriterConfig) (writerFactory, error) {
 	}, nil
 }
 
-
 // Writes data to a temporary file and commits it to the final location.
 type fileWriter struct {
 	// Temporary file handle
