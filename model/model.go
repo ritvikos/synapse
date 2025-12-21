@@ -1,14 +1,13 @@
 package model
 
 import (
-	"net/url"
 	"time"
 )
 
 type Task[T any] struct {
-	Url       *url.URL
+	Url       string
 	ExecuteAt time.Time
 	Score     float64
-	Metadata  *T
+	Metadata  T
 	// Fingerprint string
 }

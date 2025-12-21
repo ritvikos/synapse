@@ -88,14 +88,14 @@ func (f *Frontier[T]) Start(ctx context.Context) error {
 	return f.scheduler.Start(ctx)
 }
 
-func (f *Frontier[T]) Enqueue(ctx context.Context, endpoint string, metadata *T) error {
-	url, err := url.Parse(endpoint)
+func (f *Frontier[T]) Enqueue(ctx context.Context, endpoint string, metadata T) error {
+	_, err := url.Parse(endpoint)
 	if err != nil {
 		return err
 	}
 
 	task := model.Task[T]{
-		Url:      url,
+		Url:      endpoint,
 		Metadata: metadata,
 	}
 
@@ -121,10 +121,16 @@ func (f *Frontier[T]) robotsWorker() {
 				return
 			}
 
-			entry, err := f.robotstxt.Retrieve(task.Url.Host)
+			url, err := url.Parse(task.Url)
+			// This shouldn't happen
+			if err != nil {
+				return
+			}
+
+			entry, err := f.robotstxt.Retrieve(url.Host)
 			if err == robots.ErrRobotsTxtNeedsFetch {
-				if err := f.robotstxt.Submit(f.ctx, task.Url.Host); err != nil {
-					log.Printf("error requesting robots.txt fetch for host %s: %v", task.Url.Host, err)
+				if err := f.robotstxt.Submit(f.ctx, url.Host); err != nil {
+					log.Printf("error requesting robots.txt fetch for host %s: %v", url.Host, err)
 					continue
 				}
 
@@ -139,7 +145,7 @@ func (f *Frontier[T]) robotsWorker() {
 				continue
 			}
 			if !entry.IsAllowed {
-				log.Printf("disallowed by robots.txt: host=%s url=%s", task.Url.Host, task.Url.String())
+				log.Printf("disallowed by robots.txt: host=%s url=%s", url.Host, task.Url)
 				continue
 			}
 
@@ -203,9 +209,9 @@ func (f *Frontier[T]) scheduleWorker() {
 				return
 			}
 
-			err := f.scheduler.Write(task)
+			err := f.scheduler.Schedule(task)
 			if err != nil {
-				log.Printf("error scheduling task for url %s: %v", task.Url.String(), err)
+				log.Printf("error scheduling task for url %s: %v", task.Url, err)
 				continue
 			}
 		}

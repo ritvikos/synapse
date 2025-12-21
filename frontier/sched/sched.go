@@ -6,40 +6,43 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ritvikos/synapse/frontier/source"
+	"github.com/ritvikos/synapse/frontier/backend"
 	"github.com/ritvikos/synapse/model"
 )
 
 // TODO: Track relevent metrics for decision making in PrefetchState and FlushState in Scheduler
 // Or combine them into a single State, if relevant.
 
-type Scheduler[T any] struct {
-	source source.Source[T]
-	policy BufferPolicy
+type Task[T any] = *model.Task[T]
+type Queue[T any] = backend.Queue[Task[T]]
 
-	prefetchBuf  chan *model.Task[T]
-	flushBuf     chan *model.Task[T]
+type Scheduler[T any] struct {
+	queue Queue[T]
+
+	policy       BufferPolicy
+	prefetchBuf  chan Task[T]
+	flushBuf     chan Task[T]
 	tickInterval time.Duration
 
 	// Internal
 	ctx    context.Context
 	cancel context.CancelFunc
-	mu     sync.RWMutex
+	mu     sync.Mutex
 	wg     sync.WaitGroup
 }
 
 func NewScheduler[T any](
-	source source.Source[T],
+	queue Queue[T],
 	policy BufferPolicy,
 	prefetchBufSize uint,
 	flushBufSize uint,
 	tickInterval time.Duration,
 ) *Scheduler[T] {
 	return &Scheduler[T]{
-		source:       source,
+		queue:        queue,
 		policy:       policy,
-		prefetchBuf:  make(chan *model.Task[T], prefetchBufSize),
-		flushBuf:     make(chan *model.Task[T], flushBufSize),
+		prefetchBuf:  make(chan Task[T], prefetchBufSize),
+		flushBuf:     make(chan Task[T], flushBufSize),
 		tickInterval: tickInterval,
 	}
 }
@@ -76,7 +79,16 @@ func (s *Scheduler[T]) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (s *Scheduler[T]) Write(task *model.Task[T]) error {
+func (s *Scheduler[T]) Get() (Task[T], error) {
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	case task := <-s.prefetchBuf:
+		return task, nil
+	}
+}
+
+func (s *Scheduler[T]) Schedule(task Task[T]) error {
 	select {
 	case <-s.ctx.Done():
 		return s.ctx.Err()
@@ -128,7 +140,7 @@ func (s *Scheduler[T]) checkAndPrefetch() {
 }
 
 func (s *Scheduler[T]) prefetch(count int) error {
-	tasks, err := s.source.Consume(s.ctx, count)
+	tasks, err := s.queue.Dequeue(s.ctx, count)
 	if err != nil {
 		return fmt.Errorf("Scheduler: prefetch dequeue error: %v\n", err)
 	}
@@ -193,7 +205,7 @@ func (s *Scheduler[T]) flush(count int) error {
 		return nil
 	}
 
-	tasks := make([]*model.Task[T], 0, flushCount)
+	tasks := make([]Task[T], 0, flushCount)
 
 LOOP:
 	for range flushCount {
@@ -209,7 +221,7 @@ LOOP:
 		return nil
 	}
 
-	if err := s.source.Produce(s.ctx, tasks); err != nil {
+	if err := s.queue.Enqueue(s.ctx, tasks...); err != nil {
 		return fmt.Errorf("scheduler: flush enqueue error: %v\n", err)
 	}
 

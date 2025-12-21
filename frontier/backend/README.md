@@ -1,0 +1,1 @@
+In the future, if other components require `Queue` or `Store` (to be implemented as needed), it'd be abstracted into separate package, without changing the interface, but for now, it's kept contained.
