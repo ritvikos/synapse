@@ -7,7 +7,11 @@ import (
 type Task[T any] struct {
 	Url       string
 	ExecuteAt time.Time
-	Score     float64
 	Metadata  T
 	// Fingerprint string
+}
+
+type ScoredTask[T any] struct {
+	Task  *Task[T]
+	Score float64
 }

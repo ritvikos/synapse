@@ -26,7 +26,7 @@ type Config struct {
 
 // T represents crawl metadata (e.g., URL, Request).
 type Frontier[T any] struct {
-	robotstxt *robots.RobotsHandler
+	robotstxt *robots.RobotsResolver
 	Scorer    score.Score[T]
 	scheduler *sched.Scheduler[T]
 	config    Config
@@ -34,7 +34,7 @@ type Frontier[T any] struct {
 	// Channels
 	ingressCh        chan *model.Task[T]
 	robotsResolvedCh chan *model.Task[T]
-	scoredCh         chan *model.Task[T]
+	scoredCh         chan *model.ScoredTask[T]
 
 	// Internal
 	ctx    context.Context
@@ -43,7 +43,7 @@ type Frontier[T any] struct {
 }
 
 func NewFrontier[T any](
-	robotstxt *robots.RobotsHandler,
+	robotstxt *robots.RobotsResolver,
 	scorer score.Score[T],
 	scheduler *sched.Scheduler[T],
 	config Config,
@@ -61,11 +61,8 @@ func (f *Frontier[T]) Start(ctx context.Context) error {
 
 	f.ingressCh = make(chan *model.Task[T], f.config.IngressBufSize)
 	f.robotsResolvedCh = make(chan *model.Task[T], f.config.RobotsResolvedBufSize)
-	f.scoredCh = make(chan *model.Task[T], f.config.ScoreBufSize)
+	f.scoredCh = make(chan *model.ScoredTask[T], f.config.ScoreBufSize)
 
-	if err := f.robotstxt.Start(f.ctx); err != nil {
-		return err
-	}
 	if err := f.scheduler.Start(f.ctx); err != nil {
 		return err
 	}
@@ -127,34 +124,26 @@ func (f *Frontier[T]) robotsWorker() {
 				return
 			}
 
-			entry, err := f.robotstxt.Retrieve(url.Host)
-			if err == robots.ErrRobotsTxtNeedsFetch {
-				if err := f.robotstxt.Submit(f.ctx, url.Host); err != nil {
-					log.Printf("error requesting robots.txt fetch for host %s: %v", url.Host, err)
-					continue
-				}
-
-				// TODO: Decide on a better strategy than immediate re-enqueue
-				// Probably, maintain a pending queue and process after robots.txt is fetched
-				// For now, re-enqueue the task for later processing
-				select {
-				case f.scoredCh <- task:
-				case <-f.ctx.Done():
-					return
-				}
-				continue
+			entry, err := f.robotstxt.Resolve(f.ctx, url.Host)
+			if err != nil {
+				log.Println("error resolving robots.txt for host", url.Host, ":", err)
 			}
-			if !entry.IsAllowed {
+
+			if !entry.Test(task.Url) {
 				log.Printf("disallowed by robots.txt: host=%s url=%s", url.Host, task.Url)
 				continue
 			}
 
 			now := time.Now()
-			if entry.CrawlDelay != 0 {
-				task.ExecuteAt = now.Add(entry.CrawlDelay)
+			crawlDelay := entry.CrawlDelay()
+
+			if crawlDelay == 0 {
+				now = now.Add(f.config.DefaultCrawlDelay)
 			} else {
-				task.ExecuteAt = now.Add(f.config.DefaultCrawlDelay)
+				now = now.Add(crawlDelay)
 			}
+
+			task.ExecuteAt = now
 
 			select {
 			case f.robotsResolvedCh <- task:
@@ -184,10 +173,14 @@ func (f *Frontier[T]) scoreWorker() {
 				log.Printf("error scoring item: %v", err)
 				continue
 			}
-			task.Score = score
+
+			scoredTask := &model.ScoredTask[T]{
+				Task:  task,
+				Score: score,
+			}
 
 			select {
-			case f.scoredCh <- task:
+			case f.scoredCh <- scoredTask:
 			case <-f.ctx.Done():
 				return
 			}
@@ -211,7 +204,7 @@ func (f *Frontier[T]) scheduleWorker() {
 
 			err := f.scheduler.Schedule(task)
 			if err != nil {
-				log.Printf("error scheduling task for url %s: %v", task.Url, err)
+				log.Printf("error scheduling task for url %s: %v", task.Task.Url, err)
 				continue
 			}
 		}

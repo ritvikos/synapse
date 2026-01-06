@@ -13,15 +13,16 @@ import (
 // TODO: Track relevent metrics for decision making in PrefetchState and FlushState in Scheduler
 // Or combine them into a single State, if relevant.
 
-type Task[T any] = *model.Task[T]
-type Queue[T any] = backend.Queue[Task[T]]
+// type Task[T any] = *model.Task[T]
+type ScoredTask[T any] = *model.ScoredTask[T]
+type Queue[T any] = backend.Queue[ScoredTask[T]]
 
 type Scheduler[T any] struct {
 	queue Queue[T]
 
-	policy       BufferPolicy
-	prefetchBuf  chan Task[T]
-	flushBuf     chan Task[T]
+	policy BufferPolicy
+	// prefetchBuf  chan Task[T]
+	flushBuf     chan ScoredTask[T]
 	tickInterval time.Duration
 
 	// Internal
@@ -34,15 +35,15 @@ type Scheduler[T any] struct {
 func NewScheduler[T any](
 	queue Queue[T],
 	policy BufferPolicy,
-	prefetchBufSize uint,
+	// prefetchBufSize uint,
 	flushBufSize uint,
 	tickInterval time.Duration,
 ) *Scheduler[T] {
 	return &Scheduler[T]{
-		queue:        queue,
-		policy:       policy,
-		prefetchBuf:  make(chan Task[T], prefetchBufSize),
-		flushBuf:     make(chan Task[T], flushBufSize),
+		queue:  queue,
+		policy: policy,
+		// prefetchBuf:  make(chan Task[T], prefetchBufSize),
+		flushBuf:     make(chan ScoredTask[T], flushBufSize),
 		tickInterval: tickInterval,
 	}
 }
@@ -79,16 +80,16 @@ func (s *Scheduler[T]) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (s *Scheduler[T]) Get() (Task[T], error) {
-	select {
-	case <-s.ctx.Done():
-		return nil, s.ctx.Err()
-	case task := <-s.prefetchBuf:
-		return task, nil
-	}
-}
+// func (s *Scheduler[T]) Get() (Task[T], error) {
+// 	select {
+// 	case <-s.ctx.Done():
+// 		return nil, s.ctx.Err()
+// 	case task := <-s.prefetchBuf:
+// 		return task, nil
+// 	}
+// }
 
-func (s *Scheduler[T]) Schedule(task Task[T]) error {
+func (s *Scheduler[T]) Schedule(task *model.ScoredTask[T]) error {
 	select {
 	case <-s.ctx.Done():
 		return s.ctx.Err()
@@ -115,8 +116,8 @@ func (s *Scheduler[T]) prefetchWorker() {
 
 func (s *Scheduler[T]) checkAndPrefetch() {
 	state := PrefetchState{
-		Capacity: cap(s.prefetchBuf),
-		Size:     len(s.prefetchBuf),
+		// Capacity: cap(s.prefetchBuf),
+		// Size:     len(s.prefetchBuf),
 	}
 
 	decision := s.policy.ShouldPrefetch(s.ctx, state)
@@ -140,18 +141,14 @@ func (s *Scheduler[T]) checkAndPrefetch() {
 }
 
 func (s *Scheduler[T]) prefetch(count int) error {
-	tasks, err := s.queue.Dequeue(s.ctx, count)
-	if err != nil {
-		return fmt.Errorf("Scheduler: prefetch dequeue error: %v\n", err)
-	}
-
-	for _, task := range tasks {
-		select {
-		case <-s.ctx.Done():
-			return s.ctx.Err()
-		case s.prefetchBuf <- task:
-		}
-	}
+	_ = s.queue.Dequeue(s.ctx, count)
+	// for task := range tasks {
+	// 	select {
+	// 	case <-s.ctx.Done():
+	// 		return s.ctx.Err()
+	// 	case s.prefetchBuf <- task:
+	// 	}
+	// }
 
 	return nil
 }
@@ -205,7 +202,7 @@ func (s *Scheduler[T]) flush(count int) error {
 		return nil
 	}
 
-	tasks := make([]Task[T], 0, flushCount)
+	tasks := make([]ScoredTask[T], 0, flushCount)
 
 LOOP:
 	for range flushCount {
@@ -221,7 +218,7 @@ LOOP:
 		return nil
 	}
 
-	if err := s.queue.Enqueue(s.ctx, tasks...); err != nil {
+	if err := s.queue.Enqueue(s.ctx, tasks); err != nil {
 		return fmt.Errorf("scheduler: flush enqueue error: %v\n", err)
 	}
 

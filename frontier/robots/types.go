@@ -2,25 +2,32 @@ package robots
 
 import (
 	"context"
+	"net/http"
 	"time"
 
-	"github.com/ritvikos/synapse/internal/lifecycle"
+	"github.com/temoto/robotstxt"
 )
 
-// Blocking operation: called from dedicated workers
-type RobotsTxtFetcher interface {
-	lifecycle.Lifecycle
-	Fetch(ctx context.Context, host string) (RobotsEntry, error)
+type RobotsFetcher interface {
+	Fetch(ctx context.Context, host string) (*http.Response, error)
 }
 
-type RobotsTxtBackend interface {
-	lifecycle.Lifecycle
-	Set(ctx context.Context, entry RobotsEntry) error
-	Get(ctx context.Context, domain string) (RobotsEntry, error)
-	Has(ctx context.Context, domain string) (bool, error)
-}
-
+// TODO: Add TTL
 type RobotsEntry struct {
-	CrawlDelay time.Duration
-	IsAllowed  bool
+	Group       *robotstxt.Group
+	LastFetched time.Time
+}
+
+func (e *RobotsEntry) Test(path string) bool {
+	if e.Group == nil {
+		return true
+	}
+	return e.Group.Test(path)
+}
+
+func (e *RobotsEntry) CrawlDelay() time.Duration {
+	if e.Group == nil {
+		return time.Second * 0
+	}
+	return e.Group.CrawlDelay
 }

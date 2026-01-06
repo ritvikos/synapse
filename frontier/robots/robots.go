@@ -2,98 +2,86 @@ package robots
 
 import (
 	"context"
-	"fmt"
-	"sync"
+	"time"
+
+	"github.com/ritvikos/synapse/frontier/backend"
+	"github.com/temoto/robotstxt"
+	"golang.org/x/sync/singleflight"
 )
 
-// TODO: Pending implementation
+type RobotsBackend = backend.Store[*RobotsEntry]
 
-var ErrRobotsTxtNeedsFetch = fmt.Errorf("robots.txt needs fetch")
-
-type RobotsHandler struct {
+type RobotsResolver struct {
 	userAgent string
-	fetcher   RobotsTxtFetcher
-	backend   RobotsTxtBackend
-	requestCh chan string
-	workers   uint
-
-	// Internal
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	mu     sync.RWMutex
+	fetcher   RobotsFetcher
+	backend   RobotsBackend
+	sf        singleflight.Group
 }
 
-func NewRobotsHandler(
+func NewRobotsResolver(
 	userAgent string,
-	fetcher RobotsTxtFetcher,
-	backend RobotsTxtBackend,
-	requestChSize uint,
-	workers uint,
-) *RobotsHandler {
-	return &RobotsHandler{
+	fetcher RobotsFetcher,
+	backend RobotsBackend,
+) *RobotsResolver {
+	return &RobotsResolver{
 		userAgent: userAgent,
 		fetcher:   fetcher,
 		backend:   backend,
-		requestCh: make(chan string, requestChSize),
-		workers:   workers,
+		sf:        singleflight.Group{},
 	}
 }
 
-func (r *RobotsHandler) Start(ctx context.Context) error {
-	r.ctx, r.cancel = context.WithCancel(ctx)
-
-	for range r.workers {
-		r.wg.Add(1)
-		go r.fetchWorker()
+// origin: [Scheme + Host]
+func (r *RobotsResolver) Resolve(ctx context.Context, origin string) (*RobotsEntry, error) {
+	entry, err := r.backend.Get(ctx, origin)
+	if err == nil {
+		return entry, nil
 	}
 
-	return nil
-}
-
-func (r *RobotsHandler) Submit(ctx context.Context, host string) error {
-	select {
-	case r.requestCh <- host:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (r *RobotsHandler) fetchWorker() {
-	defer r.wg.Done()
-
-	for {
-		select {
-		case <-r.ctx.Done():
-			return
-
-		case host, ok := <-r.requestCh:
-			if !ok {
-				fmt.Println("robots fetch worker: channel closed, exiting")
-				return
-			}
-
-			entry, err := r.fetcher.Fetch(r.ctx, host)
-			if err != nil {
-				fmt.Printf("robots fetch worker: error fetching robots.txt for host %s: %v\n", host, err)
-				continue
-			}
-
-			if err := r.backend.Set(r.ctx, entry); err != nil {
-				fmt.Printf("robots fetch worker: error storing robots.txt for host %s: %v\n", host, err)
-				continue
-			}
+	result, err, _ := r.sf.Do(origin, func() (any, error) {
+		if e, err := r.backend.Get(ctx, origin); err == nil {
+			return e, nil
 		}
+
+		data, err := r.resolve(ctx, origin)
+		if err != nil {
+			return nil, err
+		}
+
+		entry := &RobotsEntry{
+			Group:       data.FindGroup(r.userAgent),
+			LastFetched: time.Now(),
+		}
+
+		return entry, nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
+
+	return result.(*RobotsEntry), nil
 }
 
-func (r *RobotsHandler) Retrieve(host string) (RobotsEntry, error) {
-	if has, err := r.backend.Has(r.ctx, host); err != nil {
-		return RobotsEntry{}, err
-	} else if has {
-		return r.backend.Get(r.ctx, host)
+func (r *RobotsResolver) resolve(ctx context.Context, origin string) (*robotstxt.RobotsData, error) {
+	resp, err := r.fetcher.Fetch(ctx, origin)
+	if err != nil {
+		return nil, err
 	}
 
-	return RobotsEntry{}, nil
+	data, err := robotstxt.FromResponse(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	entry := &RobotsEntry{
+		Group:       data.FindGroup(r.userAgent),
+		LastFetched: time.Now(),
+	}
+
+	if err := r.backend.Put(ctx, origin, entry); err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
