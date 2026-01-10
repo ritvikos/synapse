@@ -9,11 +9,10 @@ type Queue[T any] interface {
 	// Insert items into the queue.
 	Enqueue(ctx context.Context, items []T) error
 
-	// Retrieve upto 'n' items from the queue.
-	Dequeue(ctx context.Context, n int) <-chan T // todo: remove
-
-	// Underlying dequeue channel
-	DequeueCh(ctx context.Context) <-chan T
+	// Retrieve items from the queue into the provided buffer.
+	// Returns the number of items retrieved.
+	// If the queue is empty, it returns (0, nil)
+	Dequeue(ctx context.Context, n int, buf chan<- T) (int, error)
 
 	// Number of pending items in the queue.
 	Len(ctx context.Context) (int, error)
