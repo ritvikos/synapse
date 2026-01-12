@@ -57,6 +57,7 @@ func decompressResponse(resp *http.Response) error {
 	}
 
 	resp.Body = reader
+	resp.ContentLength = -1
 	resp.Header.Del(HeaderContentEncoding)
 	resp.Uncompressed = true
 

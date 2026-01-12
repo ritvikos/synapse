@@ -112,7 +112,7 @@ func detectCharset(resp *http.Response, defaultEncoding string) (*CharsetMetadat
 	}
 
 	return &CharsetMetadata{
-		MIMEType: "text/plain",
+		MIMEType: mimeType,
 		Charset:  detectedCharset,
 	}, nil
 }

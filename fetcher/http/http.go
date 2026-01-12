@@ -19,20 +19,24 @@ type HttpFetcher struct {
 
 type Options func(*HttpFetcher)
 
-func NewHttpFetcher(httpClient HttpClient, opts ...Options) HttpFetcher {
-	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+// TODO: Add options to override base client settings.
+func NewHttpFetcher(httpClient HttpClient, opts ...Options) (*HttpFetcher, error) {
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return nil, fmt.Errorf("http-fetcher: unable to initialize cookie-jar %w", err)
+	}
 
-	fetcher := HttpFetcher{
+	fetcher := &HttpFetcher{
 		httpClient: httpClient,
 		eventHook:  NoopEventHook,
 		cookieJar:  jar,
 	}
 
 	for _, opt := range opts {
-		opt(&fetcher)
+		opt(fetcher)
 	}
 
-	return fetcher
+	return fetcher, nil
 }
 
 func WithEventHooks(hooks EventHooks) Options {
@@ -52,11 +56,11 @@ func WithCookieJar(jar http.CookieJar) Options {
 }
 
 func (f *HttpFetcher) Head(ctx context.Context, url string, opts ...RequestOptions) (*http.Response, error) {
-	return f.doRequest(ctx, http.MethodHead, url, nil, opts...)
+	return f.do(ctx, http.MethodHead, url, nil, opts...)
 }
 
 func (f *HttpFetcher) Get(ctx context.Context, url string, opts ...RequestOptions) (*http.Response, error) {
-	return f.doRequest(ctx, http.MethodGet, url, nil)
+	return f.do(ctx, http.MethodGet, url, nil, opts...)
 }
 
 // -- POST --
@@ -82,7 +86,7 @@ func (f *HttpFetcher) Get(ctx context.Context, url string, opts ...RequestOption
 
 // func (f *HttpFetcher) PostMultipart(ctx context.Context, url string, data map[string][]byte) error {}
 
-func (f *HttpFetcher) doRequest(ctx context.Context, method string, url string, body io.Reader, opts ...RequestOptions) (*http.Response, error) {
+func (f *HttpFetcher) do(ctx context.Context, method string, url string, body io.Reader, opts ...RequestOptions) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err
@@ -92,10 +96,10 @@ func (f *HttpFetcher) doRequest(ctx context.Context, method string, url string, 
 		opt(req)
 	}
 
-	return f.do(ctx, req)
+	return f._do(ctx, req)
 }
 
-func (f *HttpFetcher) do(_ context.Context, req *http.Request) (*http.Response, error) {
+func (f *HttpFetcher) _do(_ context.Context, req *http.Request) (*http.Response, error) {
 	for _, cookie := range f.cookieJar.Cookies(req.URL) {
 		req.AddCookie(cookie)
 	}
