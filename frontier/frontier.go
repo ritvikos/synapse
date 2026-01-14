@@ -82,11 +82,11 @@ func (f *Frontier[T]) Start(ctx context.Context) error {
 		go f.scheduleWorker()
 	}
 
-	return nil // f.scheduler.Start(ctx) was called above
+	return nil
 }
 
-func (f *Frontier[T]) Tasks() <-chan *model.ScoredTask[T] {
-	return f.scheduler.Tasks()
+func (f *Frontier[T]) Dequeue(ctx context.Context) *model.ScoredTask[T] {
+	return f.scheduler.Dequeue(ctx)
 }
 
 func (f *Frontier[T]) Enqueue(ctx context.Context, endpoint string, metadata T) error {
@@ -206,7 +206,7 @@ func (f *Frontier[T]) scheduleWorker() {
 				return
 			}
 
-			err := f.scheduler.Schedule(task)
+			err := f.scheduler.Enqueue(f.ctx, task)
 			if err != nil {
 				log.Printf("error scheduling task for url %s: %v", task.Task.Url, err)
 				continue
