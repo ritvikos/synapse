@@ -5,27 +5,27 @@ package pipeline
 
 import "io"
 
-type PipelineOption[T any] func(*Pipeline[T])
+type LocalPipelineOption[T any] func(*LocalPipeline[T])
 
-func WithProcessors[T any](procs ...Processor[T]) PipelineOption[T] {
-	return func(p *Pipeline[T]) {
+func WithProcessors[T any](procs ...Processor[T]) LocalPipelineOption[T] {
+	return func(p *LocalPipeline[T]) {
 		p.processors = append(p.processors, procs...)
 	}
 }
 
-func WithSink[T any](sink Sink[T]) PipelineOption[T] {
-	return func(p *Pipeline[T]) {
+func WithSink[T any](sink Sink[T]) LocalPipelineOption[T] {
+	return func(p *LocalPipeline[T]) {
 		p.sink = sink
 	}
 }
 
-func WithExecutor[T any](executor func(*ExecutionContext[T], io.Reader) error) PipelineOption[T] {
-	return func(p *Pipeline[T]) {
+func WithExecutor[T any](executor func(*ExecutionContext[T], io.Reader) error) LocalPipelineOption[T] {
+	return func(p *LocalPipeline[T]) {
 		p.executor = executor
 	}
 }
 
-func (p Pipeline[T]) Execute(r io.Reader) error {
+func (p LocalPipeline[T]) Execute(r io.Reader) error {
 	return p.executor(&ExecutionContext[T]{
 		parser:     p.parser,
 		processors: p.processors,
@@ -33,6 +33,6 @@ func (p Pipeline[T]) Execute(r io.Reader) error {
 	}, r)
 }
 
-func (p Pipeline[T]) ContentType() string {
+func (p LocalPipeline[T]) ContentType() string {
 	return p.contentType
 }

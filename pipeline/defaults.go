@@ -5,6 +5,7 @@ package pipeline
 
 import "io"
 
+// Just for testing purpose
 type DiscardParser[T any] struct{}
 
 func (d DiscardParser[T]) Parse(r io.Reader) (T, error) {

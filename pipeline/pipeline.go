@@ -34,7 +34,7 @@ func (ctx *ExecutionContext[T]) ExecuteDefault(r io.Reader) error {
 	return nil
 }
 
-type Pipeline[T any] struct {
+type LocalPipeline[T any] struct {
 	parser      Parser[T]
 	processors  []Processor[T]
 	sink        Sink[T]
@@ -42,8 +42,8 @@ type Pipeline[T any] struct {
 	executor    func(*ExecutionContext[T], io.Reader) error
 }
 
-func NewPipeline[T any](contentType string, parser Parser[T], opts ...PipelineOption[T]) (*Pipeline[T], error) {
-	p := &Pipeline[T]{
+func NewLocalPipeline[T any](contentType string, parser Parser[T], opts ...LocalPipelineOption[T]) (*LocalPipeline[T], error) {
+	p := &LocalPipeline[T]{
 		parser:      parser,
 		contentType: contentType,
 	}
