@@ -64,10 +64,10 @@ import (
 //		log.Fatal(err)
 //	}
 type Spooler struct {
-	config        SpoolerConfig
-	writer        writerFactory
 	batcher       *batcher
 	currentWriter *fileWriter
+	config        SpoolerConfig
+	writer        writerFactory
 }
 
 // Create a new Spooler instance

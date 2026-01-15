@@ -15,10 +15,10 @@ import (
 type RobotsBackend = backend.Store[*RobotsEntry]
 
 type RobotsResolver struct {
-	userAgent string
 	fetcher   RobotsFetcher
 	backend   RobotsBackend
 	sf        singleflight.Group
+	userAgent string
 }
 
 func NewRobotsResolver(

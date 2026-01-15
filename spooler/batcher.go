@@ -14,9 +14,8 @@ import (
 
 // Manages batch directories and size.
 type batcher struct {
-	config BatchConfig
-
 	currentDir  string
+	config      BatchConfig
 	currentSize atomic.Int64
 }
 

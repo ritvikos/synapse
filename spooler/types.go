@@ -27,14 +27,14 @@ func (c SpoolerConfig) Validate() error {
 }
 
 type BatchConfig struct {
+	// Handle batch processing
+	Processor BatchProcessor
+
 	// Root directory where batch directories are created
 	BaseDir string
 
 	// Maximum batch batchDirSize (per directory)
 	MaxBatchSize int64
-
-	// Handle batch processing
-	Processor BatchProcessor
 }
 
 func (c BatchConfig) Validate() error {
@@ -56,6 +56,9 @@ func (c BatchConfig) Validate() error {
 }
 
 type BatchProcessor struct {
+	// Hooks for batch processing events
+	Hooks *BatchHooks
+
 	// Perform batch processing asynchronously.
 	//
 	// Useful for long-running tasks like converting to WARC.
@@ -65,9 +68,6 @@ type BatchProcessor struct {
 	//
 	// Useful to save disk space after processing is complete.
 	DeleteSource bool
-
-	// Hooks for batch processing events
-	Hooks *BatchHooks
 }
 
 func (c *BatchProcessor) Validate() error {

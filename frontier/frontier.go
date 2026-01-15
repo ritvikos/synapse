@@ -29,20 +29,20 @@ type Config struct {
 
 // T represents crawl metadata (e.g., URL, Request).
 type Frontier[T any] struct {
-	robotstxt *robots.RobotsResolver
-	Scorer    score.Score[T]
-	scheduler sched.Scheduler[T]
-	config    Config
-
 	// Channels
 	ingressCh        chan *model.Task[T]
 	robotsResolvedCh chan *model.Task[T]
 	scoredCh         chan *model.ScoredTask[T]
 
+	robotstxt *robots.RobotsResolver
+	Scorer    score.Score[T]
+	scheduler sched.Scheduler[T]
+
 	// Internal
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	config Config
 }
 
 func NewFrontier[T any](

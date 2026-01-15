@@ -8,9 +8,9 @@ import (
 )
 
 type Task[T any] struct {
-	Url       string
 	ExecuteAt time.Time
 	Metadata  T
+	Url       string
 	// Fingerprint string
 }
 

@@ -10,8 +10,8 @@ import (
 
 type ExecutionContext[T any] struct {
 	parser     Parser[T]
-	processors []Processor[T]
 	sink       Sink[T]
+	processors []Processor[T]
 }
 
 func (ctx *ExecutionContext[T]) ExecuteDefault(r io.Reader) error {
@@ -35,11 +35,11 @@ func (ctx *ExecutionContext[T]) ExecuteDefault(r io.Reader) error {
 }
 
 type LocalPipeline[T any] struct {
+	executor    func(*ExecutionContext[T], io.Reader) error
 	parser      Parser[T]
-	processors  []Processor[T]
 	sink        Sink[T]
 	contentType string
-	executor    func(*ExecutionContext[T], io.Reader) error
+	processors  []Processor[T]
 }
 
 func NewLocalPipeline[T any](contentType string, parser Parser[T], opts ...LocalPipelineOption[T]) (*LocalPipeline[T], error) {

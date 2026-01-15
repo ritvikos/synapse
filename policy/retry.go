@@ -8,8 +8,8 @@ import (
 )
 
 type RetryController struct {
-	maxRetries int
 	backoff    BackoffPolicy
+	maxRetries int
 	attempts   int
 }
 
