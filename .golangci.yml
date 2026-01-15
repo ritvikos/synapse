@@ -1,0 +1,18 @@
+# TODO: Add lints relevant to:
+# 
+# tests:      once they're mature enough to push (see [WIP-tag]: https://github.com/vyrelabs/synapse/commit/545f351cc78c646360f5b5ec66f2547c231cea7b)
+# mem-alloc:  after profiling.
+# monitoring: if the experimental part in 'frontier/sched' is added (see: https://github.com/vyrelabs/synapse/commit/437fb2f761f8d1adf96f8af27b0dbcdec34e509d)
+version: '2'
+linters:
+  default: none
+  enable:
+    - govet
+  settings:
+    govet:
+      # Once the relevant parts are added in the codebase, enable the following:
+      # - slog (see: https://github.com/vyrelabs/synapse/issues/2)
+      # - loggercheck (see: https://github.com/vyrelabs/synapse/issues/2)
+      # - tests specific ones
+      enable:
+        - fieldalignment
