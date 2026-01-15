@@ -5,6 +5,7 @@ package backend
 
 import (
 	"context"
+	"time"
 )
 
 // Generic Queue interface
@@ -25,4 +26,10 @@ type Store[T any] interface {
 	Put(ctx context.Context, key string, value T) error
 	Get(ctx context.Context, key string) (T, error)
 	Delete(ctx context.Context, key string) error
+}
+
+type Cache[T any] interface {
+	Set(ctx context.Context, key string, value T, ttl time.Duration) error
+	Get(ctx context.Context, key string) (T, error)
+	Purge(ctx context.Context) error
 }
