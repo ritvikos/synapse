@@ -5,6 +5,22 @@ package http
 
 import "net/http"
 
+// Configures the [HttpFetcher] instance
+type HttpFetcherOptions func(*HttpFetcher)
+
+func WithEventHooks(hooks EventHooks) HttpFetcherOptions {
+	return func(f *HttpFetcher) {
+		f.eventHook = hooks
+	}
+}
+
+func WithCookieJar(jar http.CookieJar) HttpFetcherOptions {
+	return func(f *HttpFetcher) {
+		f.cookieJar = jar
+	}
+}
+
+// Configures individual HTTP Requests made by [HttpFetcher]
 type RequestOptions func(*http.Request)
 
 func WithBasicAuth(username, password string) RequestOptions {

@@ -24,34 +24,30 @@ var ErrRobotsInvalidTTL = errors.New("robots resolver: invalid TTL duration")
 type RobotsCache = backend.Cache[*RobotsEntry]
 
 type RobotsResolver struct {
-	sf        singleflight.Group
-	fetcher   RobotsFetcher
-	cache     RobotsCache
-	userAgent string
-	ttl       time.Duration
+	sf      singleflight.Group
+	fetcher RobotsFetcher
+	cache   RobotsCache
+	config  RobotsConfig
 }
 
 func NewRobotsResolver(
-	userAgent string,
+	config RobotsConfig,
 	fetcher RobotsFetcher,
 	cache RobotsCache,
-	ttl time.Duration,
 ) (*RobotsResolver, error) {
-	if ttl <= 0 {
-		return nil, ErrRobotsInvalidTTL
+	if err := config.validate(); err != nil {
+		return nil, err
 	}
-
 	return &RobotsResolver{
-		userAgent: userAgent,
-		fetcher:   fetcher,
-		cache:     cache,
-		sf:        singleflight.Group{},
-		ttl:       ttl,
+		fetcher: fetcher,
+		cache:   cache,
+		sf:      singleflight.Group{},
+		config:  config,
 	}, nil
 }
 
 func (r *RobotsResolver) Resolve(ctx context.Context, origin string) (*RobotsEntry, error) {
-	return r.resolve(ctx, origin, r.ttl)
+	return r.resolve(ctx, origin, r.config.TTL)
 }
 
 func (r *RobotsResolver) ResolveWithTTL(ctx context.Context, origin string, ttl time.Duration) (*RobotsEntry, error) {
@@ -105,7 +101,7 @@ func (r *RobotsResolver) get(ctx context.Context, origin string) (*RobotsEntry, 
 	}
 
 	return &RobotsEntry{
-		Group:       data.FindGroup(r.userAgent),
+		Group:       data.FindGroup(r.config.UserAgent),
 		LastFetched: time.Now(),
 	}, nil
 }

@@ -20,10 +20,8 @@ type HttpFetcher struct {
 	cookieJar http.CookieJar
 }
 
-type Options func(*HttpFetcher)
-
 // TODO: Add options to override base client settings.
-func NewHttpFetcher(httpClient HttpClient, opts ...Options) (*HttpFetcher, error) {
+func NewHttpFetcher(httpClient HttpClient, opts ...HttpFetcherOptions) (*HttpFetcher, error) {
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return nil, fmt.Errorf("http-fetcher: unable to initialize cookie-jar %w", err)
@@ -40,22 +38,6 @@ func NewHttpFetcher(httpClient HttpClient, opts ...Options) (*HttpFetcher, error
 	}
 
 	return fetcher, nil
-}
-
-func WithEventHooks(hooks EventHooks) Options {
-	return func(f *HttpFetcher) {
-		f.eventHook = hooks
-	}
-}
-
-func WithCookieJar(jar http.CookieJar) Options {
-	return func(f *HttpFetcher) {
-		if jar == nil {
-			f.cookieJar = &NoopCookieJar{}
-			return
-		}
-		f.cookieJar = jar
-	}
 }
 
 func (f *HttpFetcher) Head(ctx context.Context, url string, opts ...RequestOptions) (*http.Response, error) {
