@@ -4,11 +4,12 @@
 package spooler
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync/atomic"
 )
 
@@ -24,7 +25,7 @@ func newBatcher(config BatchConfig) (*batcher, error) {
 	var err error
 
 	if err = config.Validate(); err != nil {
-		return nil, fmt.Errorf("batcher config: %w", err)
+		return nil, fmt.Errorf("batcher: batcher config: %w", err)
 	}
 
 	currentDir, err := newBatch(config.BaseDir)
@@ -75,7 +76,7 @@ func (b *batcher) Rotate() error {
 
 		if b.config.Processor.DeleteSource {
 			if err := os.RemoveAll(currentDir); err != nil {
-				return fmt.Errorf("failed to delete batch directory: %w", err)
+				return fmt.Errorf("batcher: failed to delete batch directory: %w", err)
 			}
 		}
 	}
@@ -85,14 +86,41 @@ func (b *batcher) Rotate() error {
 
 // Create a new batch directory
 func newBatch(baseDir string) (string, error) {
-	// Generate a unique file ID
-	createFileID := func() string {
-		return strconv.Itoa(rand.Int())
+	// Generate 'n' cryptographically secure random bytes, with a maximum of 'maxRetries' reattempts in case of failure.
+	// Returns an error if 'n' is equal to zero, or if the maximum retries are exceeded.
+	generateRandomBytes := func(n uint, maxRetries uint) ([]byte, error) {
+		if n == 0 {
+			return nil, errors.New("CSPRNG: 'n' must be greater than zero")
+		}
+		b := make([]byte, n)
+		for range maxRetries {
+			if _, err := rand.Read(b); err != nil {
+				continue
+			}
+			return b, nil
+		}
+		return nil, fmt.Errorf("CSPRNG: max retries exceeded (%d)", maxRetries)
 	}
 
-	batchDir := filepath.Join(baseDir, "batch-"+createFileID())
+	createFileID := func() (string, error) {
+		b, err := generateRandomBytes(4, 3)
+		if err != nil {
+			return "", fmt.Errorf("batcher: failed to create file ID: %w", err)
+		}
+		return hex.EncodeToString(b), nil
+	}
+
+	fileID, err := createFileID()
+	if err != nil {
+		// TODO: Decide fallback approach:
+		// 1. Generate a new ID with non-cryptographic RNG
+		// 2. Fail the batch creation and return the error
+		return "", err
+	}
+
+	batchDir := filepath.Join(baseDir, "batch-"+fileID)
 	if err := os.MkdirAll(batchDir, filePermissions); err != nil {
-		return "", fmt.Errorf("failed to create batch directory: %w", err)
+		return "", fmt.Errorf("batcher: failed to create batch directory: %w", err)
 	}
 	return batchDir, nil
 }

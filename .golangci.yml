@@ -8,6 +8,7 @@ linters:
   default: none
   enable:
     - govet
+    - gosec
   settings:
     govet:
       # Once the relevant parts are added in the codebase, enable the following:

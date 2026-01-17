@@ -4,7 +4,8 @@
 package spooler
 
 import (
-	"math/rand/v2"
+	"crypto/rand"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,12 +18,22 @@ import (
 
 // TODO: Write more robust tests once spooler's internal implementation is completed, till then, basic ones.
 
+func generateRandomNumber(t *testing.T, max int64) int {
+	t.Helper()
+
+	n, err := rand.Int(rand.Reader, big.NewInt(max))
+	if err != nil {
+		panic("CSPRNG: failed to generate random number: " + err.Error())
+	}
+	return int(n.Int64())
+}
+
 func generateTestData(t *testing.T) string {
 	t.Helper()
 
-	paragraphCount := int(rand.Int64N(15))
-	sentenceCount := int(rand.Int64N(20))
-	wordCount := int(rand.Int64N(100))
+	paragraphCount := generateRandomNumber(t, 15)
+	sentenceCount := generateRandomNumber(t, 20)
+	wordCount := generateRandomNumber(t, 100)
 	separation := " "
 
 	return gofakeit.LoremIpsumParagraph(paragraphCount, sentenceCount, wordCount, separation)
